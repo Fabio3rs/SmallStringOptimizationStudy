@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <string_view>
 
 namespace ssostr {
 static constexpr uint8_t SSOFLAG = 1 << 7;
@@ -121,7 +122,7 @@ class string {
         }
     }
 
-    void handle_copy(const char *ptr, std::size_t nsize) {
+    constexpr void handle_copy(const char *ptr, std::size_t nsize) {
         if (nsize > capacity()) {
             allocate_mem(nsize);
         }
@@ -134,7 +135,7 @@ class string {
     }
 
   public:
-    const char *c_str() const {
+    constexpr const char *c_str() const {
         if (is_sso()) {
             return internal_data_o.ssoval.buffer;
         }
@@ -142,7 +143,11 @@ class string {
         return internal_data_o.copyval.ptr;
     }
 
-    std::size_t size() const {
+    constexpr std::string_view as_sv() const {
+        return std::string_view(c_str(), size());
+    }
+
+    constexpr std::size_t size() const {
         if (is_sso()) {
             return sso_size();
         }
@@ -150,7 +155,7 @@ class string {
         return size_no_sso();
     }
 
-    std::size_t capacity() const {
+    constexpr std::size_t capacity() const {
         if (is_sso()) {
             return sso_capacity();
         }
@@ -158,18 +163,55 @@ class string {
         return capacity_no_sso();
     }
 
-    bool empty() const noexcept { return size() == 0; }
-
     void reserve(size_t n) { realloc_grow(n); }
 
-    void append(const char *inputval) {
-        std::size_t inputvaluesize = std::strlen(inputval);
+    constexpr char &operator[](size_t i) { return get_buffer()[i]; }
+
+    constexpr char *data() { return get_buffer(); }
+
+    constexpr bool empty() const noexcept { return size() == 0; }
+
+    // Comparators
+    int compare(std::string_view str) const {
+        return std::strncmp(c_str(), str.data(), size());
+    }
+
+    int compare(const string &str) const {
+        return std::strncmp(c_str(), str.c_str(), size());
+    }
+
+    bool operator==(std::string_view str) const { return compare(str) == 0; }
+
+    bool operator==(const string &str) const { return compare(str) == 0; }
+
+    friend bool operator<(const string &rhs, const string &lhs) {
+        return rhs.compare(lhs) < 0;
+    }
+
+    // Append
+    string &operator+=(const string &str) {
+        append(std::string_view(str.c_str(), str.size()));
+        return *this;
+    }
+
+    string &operator+=(std::string_view str) {
+        append(str);
+        return *this;
+    }
+
+    string &operator+=(char c) {
+        append(std::string_view(&c, 1));
+        return *this;
+    }
+
+    void append(std::string_view inputval) {
+        std::size_t inputvaluesize = inputval.size();
         std::size_t newsize = inputvaluesize + size();
         realloc_grow(newsize);
 
         char *current_buffer = get_buffer();
         std::size_t current_size = size();
-        std::copy(inputval, inputval + inputvaluesize,
+        std::copy(inputval.data(), inputval.data() + inputvaluesize,
                   std::addressof(current_buffer[current_size]));
 
         current_buffer[newsize] = 0;
@@ -177,6 +219,7 @@ class string {
         internal_set_size(newsize);
     }
 
+    // Assign
     string &operator=(const string &str) {
         if (std::addressof(str) == this) {
             return *this;
@@ -187,14 +230,18 @@ class string {
         return *this;
     }
 
-    string &operator=(const char *str) {
-        if (str == c_str()) {
+    string &operator=(std::string_view str) {
+        if (str.data() == c_str()) {
             return *this;
         }
 
-        handle_copy(str, std::strlen(str));
+        handle_copy(str.data(), str.size());
 
         return *this;
+    }
+
+    explicit string(std::string_view str) : string() {
+        handle_copy(str.data(), str.size());
     }
 
     explicit string(const char *str) : string() {
@@ -210,6 +257,16 @@ class string {
     ~string() { cleanup(); }
 };
 } // namespace ssostr
+
+namespace std {
+template <> struct hash<ssostr::string> {
+    size_t operator()(const ssostr::string &str) const {
+        return hash<std::string_view>()(std::string_view(
+            str.c_str(),
+            str.size())); // std::hash using std::string_view to minimize copies
+    }
+};
+} // namespace std
 
 static_assert(sizeof(ssostr::string) == 32,
               "ssostr::string deve ter o tamanho 32");
