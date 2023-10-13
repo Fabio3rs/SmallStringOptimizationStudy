@@ -7,17 +7,17 @@
 #include <string_view>
 
 namespace ssostr {
-static constexpr uint8_t SSOFLAG = 1 << 7;
+static constexpr uint8_t NO_SSOFLAG = 1 << 7;
 
 class string {
-    struct owning_string_view {
+  public:
+    struct __attribute__((aligned(1))) owning_string_view {
         char *ptr{nullptr};
-        char pad[8];
         std::size_t sizeval{0};
         std::size_t capacityval{0};
     };
 
-    struct sso_t {
+    struct __attribute__((aligned(1))) sso_t {
         char buffer[31];
         std::uint8_t flags{0u};
     };
@@ -30,7 +30,7 @@ class string {
     } internal_data_o;
 
     constexpr bool is_sso() const {
-        return (internal_data_o.ssoval.flags & SSOFLAG) == 0;
+        return (internal_data_o.ssoval.flags & NO_SSOFLAG) == 0;
     }
 
     constexpr char *get_buffer() {
@@ -49,7 +49,7 @@ class string {
 
     constexpr std::size_t capacity_no_sso() const {
         return internal_data_o.copyval.capacityval &
-               ~(static_cast<size_t>(SSOFLAG) << 56uLL);
+               ~(static_cast<size_t>(NO_SSOFLAG) << 56uLL);
     }
 
     constexpr std::size_t size_no_sso() const {
@@ -71,12 +71,11 @@ class string {
 
     void set_ptr_capacity(char *ptr, size_t allocated) {
         internal_data_o.ssoval.flags =
-            SSOFLAG; // Disables clang-tidy false-positive memory leak warning
+            NO_SSOFLAG; // Disables clang-tidy false-positive memory leak
+                        // warning
         internal_data_o.copyval.ptr = ptr;
         internal_data_o.copyval.capacityval =
-            (allocated - 1) |
-            (static_cast<size_t>(SSOFLAG)
-             << 56uLL); // allocated mem - 1 to get capacity in characters
+            (allocated - 1); // allocated mem - 1 to get capacity in characters
     }
 
     void allocate_mem(std::size_t nsize) {

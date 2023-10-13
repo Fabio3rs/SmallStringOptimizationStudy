@@ -297,7 +297,7 @@ TEST(SSOImpl, BigStringWillAllocateOnce) {
 
     ssostr::string nstr(strtmp);
 
-    EXPECT_FALSE(nstr.empty());
+    EXPECT_FALSE(nstr.empty()) << nstr.c_str();
 
     EXPECT_EQ(allocations, oldallocations + 1);
 }
@@ -322,7 +322,8 @@ TEST(SSOImpl, BigStringWillDeAllocateOnceWhenDestructed) {
 
         ssostr::string nstr(strtmp);
 
-        EXPECT_FALSE(nstr.empty());
+        EXPECT_FALSE(nstr.empty()) << nstr.c_str();
+        EXPECT_EQ(nstr, "small str 0123456789 abcdefghijklmnopqrstuvwxyz 12345678890-");
     }
 
     EXPECT_EQ(deallocations, olddeallocations + 1);
